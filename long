@@ -1,0 +1,30 @@
+#!/usr/bin/perl -w
+#
+#
+
+use strict;
+
+
+my $LONG = 80;
+
+my @FILES = @ARGV;
+
+
+
+my $linenumber;
+foreach my $file (@FILES) {
+  unless (open FILE, "<$file") {
+    print STDERR "ERROR: couldn't open file:  $file\n";
+    next;
+  }
+  $linenumber = 0;
+  my $line;
+  while ($line = <FILE>) {
+    ++$linenumber;
+    my $length = length $line;
+    print "$file:$linenumber:$line" if $length > $LONG;
+  }
+  close $file;
+}
+
+

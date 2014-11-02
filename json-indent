@@ -1,0 +1,25 @@
+#!/usr/bin/env node
+// vim: ft=javascript:
+
+
+var libfs = require('fs');
+
+
+function main(files) {
+    files.forEach(function(file) {
+        try {
+            var data = libfs.readFileSync(file);
+            data = JSON.parse(data);
+            data = JSON.stringify(data, null, 4);
+            libfs.writeFileSync(file, data);
+        } catch (err) {
+            console.error('FAILED to process ' + file);
+            console.error(err.stack);
+        }
+    });
+}
+
+
+main(process.argv.slice(2));
+
+

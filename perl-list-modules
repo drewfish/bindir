@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+#
+#
+
+
+use strict;
+use warnings;
+
+
+our %MODULES;
+
+
+sub process_dir
+{
+    my $dir     = shift;
+    my $base    = shift;
+    return unless -d $dir;
+    return if $dir eq '.';
+
+    opendir(DIR,$dir) || die $!;
+    my @entries = readdir(DIR);
+    closedir(DIR) || die $!;
+    foreach my $entry ( @entries )
+    {
+        next if $entry =~ m#^\.#;
+        my $path = "$dir/$entry";
+        if ( -d $path )
+        {
+            process_dir($path, $base);
+            next;
+        }
+
+        if ( $entry =~ m#\.pm$# )
+        {
+            ++$MODULES{$path};
+            next;
+        }
+    }
+}
+
+
+sub print_modules
+{
+    my @sorted_inc = reverse sort { length($a) <=> length($b) } @INC;
+    my %modules;
+    foreach my $path ( keys %MODULES )
+    {
+        my $module = $path;
+        foreach my $inc ( @sorted_inc )
+        {
+            next unless $path =~ m#^\Q$inc\E/(.*)#;
+            $module = $1;
+            last;
+        }
+        $module =~ s#(^|/)([0-9.]+)/#$1#g;
+        $module =~ s#(^|/)(\Q$^O\E[^/]*)/#$1#g;
+        $module =~ s#\.pm$##;
+        $module =~ s#/#::#g;
+        ++$modules{$module};
+    }
+    print "$_\n" foreach sort keys %modules;
+}
+
+
+sub main
+{
+    process_dir($_,$_) foreach @INC;
+    print_modules();
+}
+main();
+
+

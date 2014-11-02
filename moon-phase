@@ -1,0 +1,26 @@
+#!/usr/bin/env perl
+#
+#   🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘 
+#   29.530588853 days/cycle
+#   2551442.876899200 seconds/cycle
+#   last new moon:  15:12:30 PST* on Friday, 11 January 2013 
+#
+
+#   use POSIX qw/mktime asctime/;
+#   our $time = mktime(30, 12, 15, 11, 0, 113);
+#   print "time -- $time\n";
+#   print "GMT -- ", asctime(gmtime($time));
+#   print "PST -- ", asctime(localtime($time));
+#   print "\n";
+
+
+our $LAST_NEW = 1357945950;
+our @PHASES = qw/ 🌑  🌒  🌓  🌔  🌕  🌖  🌗  🌘  /;
+
+my $a = (time() - $LAST_NEW);
+my $b = $a % 2551442.876899200;     # seconds into the cycle
+my $c = $b / 2551442.876899200;     # percentage into the cycle
+my $d = int((8 * $c) + 0.5);        # phase
+my $e = $PHASES[$d];
+print "$e \n";
+

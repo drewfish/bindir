@@ -1,0 +1,33 @@
+#!/usr/bin/perl
+# choose a random line from a file
+
+use strict;
+use warnings;
+
+
+my $FILE = '/usr/share/dict/web2';
+
+
+main();
+
+
+sub main
+{
+    my $count = 1;
+    my $file = $FILE;
+    foreach my $arg ( @ARGV )
+    {
+        $file = $arg if -f $arg;
+        $count = int($arg) if $arg =~ m/^[1-9]\d*$/;
+    }
+    open(F,"<$file") or die("FAILED to open $file\n");
+    my @lines = <F>;
+    close(F) or die("FAILED to close $file\n");
+    for ( 1 .. $count )
+    {
+        my $chosen = int(rand(scalar(@lines)));
+        print $lines[$chosen];
+    }
+}
+
+

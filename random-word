@@ -1,0 +1,183 @@
+#!/usr/bin/perl
+# choose a random line from a file
+#
+#   l = consonent
+#   o = vaowel
+
+use strict;
+use warnings;
+
+
+my $FILE    = '/usr/share/dict/web2';
+my $DIR     = '/usr/share/dict';
+my $COUNT   = 1;
+my $MISS_MAX    = 100000;
+my $LENGTH_MIN;
+my $LENGTH_MAX;
+my $SYLLABLES_MIN;
+my $SYLLABLES_MAX;
+my $DEBUG   = 0;
+my $TEST;
+#  $TEST = 'mechoacan';
+#  $TEST = 'ryania';
+#  $TEST = 'typy';
+#  $TEST = 'untransmutable';
+#  $TEST = 'preobservation';
+#  $TEST = 'bronteum';
+#  $TEST = 'audio';
+#  $TEST = 'seekingly';
+#  $TEST = 'foyer';
+
+
+main();
+
+
+sub args_parse
+{
+    foreach my $arg ( @ARGV )
+    {
+        if ( -f $arg )
+        {
+            $FILE = $arg;
+            next;
+        }
+        if ( -f "$DIR/$arg" )
+        {
+            $FILE = "$DIR/$arg";
+            next;
+        }
+        if ( $arg =~ m/^[1-9]\d*$/ )
+        {
+            $COUNT = int($arg);
+            next;
+        }
+        if ( $arg =~ m/^l=([1-9]\d*)$/ )
+        {
+            $LENGTH_MIN = int($1);
+            $LENGTH_MAX = int($1);
+            next;
+        }
+        if ( $arg =~ m/^-l([1-9]\d*)$/ )
+        {
+            $LENGTH_MIN = int($1);
+            next;
+        }
+        if ( $arg =~ m/^-L([1-9]\d*)$/ )
+        {
+            $LENGTH_MAX = int($1);
+            next;
+        }
+        if ( $arg =~ m/^s=([1-9]\d*)$/ )
+        {
+            $SYLLABLES_MIN = int($1);
+            $SYLLABLES_MAX = int($1);
+            next;
+        }
+        if ( $arg =~ m/^-s([1-9]\d*)$/ )
+        {
+            $SYLLABLES_MIN = int($1);
+            next;
+        }
+        if ( $arg =~ m/^-S([1-9]\d*)$/ )
+        {
+            $SYLLABLES_MAX = int($1);
+            next;
+        }
+        # TODO "-like" "-ness" skip suffixes
+    }
+    die("min length $LENGTH_MIN greater than max length $LENGTH_MAX\n") if $LENGTH_MIN and $LENGTH_MAX and $LENGTH_MIN > $LENGTH_MAX;
+    die("min syllables $SYLLABLES_MIN greater than max syllables $SYLLABLES_MAX\n") if $SYLLABLES_MIN and $SYLLABLES_MAX and $SYLLABLES_MIN > $SYLLABLES_MAX;
+}
+
+
+sub word_syllables
+{
+    my $word = shift;
+    my $ow = $word;
+    print("======= $word\n") if $TEST;
+#   $word =~ s/[^aeiouy]{2}e$/lo/;
+    $word =~ s/[aeiouy][^aeiouy]e$/ol/;
+    $word = 'l' . $word . 'l';
+    $word =~ s/RYA/lolA/gi;
+    $word =~ s/(EYE)/o/gi;
+    $word =~ s/(ION)/ol/gi;
+    $word =~ s/(EU[MN]|OAC)/lolol/gi;
+    $word =~ s/Y+/Y/gi;
+    $word =~ s/[^aeiouy]+/l/gi;
+    print("-----1- $word\n") if $TEST;
+
+    $word =~ s/(?<=l)Yl/lol/gi;
+    $word =~ s/(?<=l)Y([aeiou])/l$1/gi;
+    $word =~ s/([aeiou])Yl/$1l/gi;
+    $word =~ s/([aeiou])Y([aeiou])/$1l$2/gi;
+    print("-----2- $word\n") if $TEST;
+
+    die("INTERNAL ERROR:  unprocessed Y -- $ow\n") if $word =~ m/y/i;
+
+    # run of vowels that are multi-syllabiic (congruent=3)
+# TODO -- continue evaluation?
+#   aa ae ai ao au
+#   ea ee ei eo eu      eo eum
+#   ia ie ii io iu      ia io
+#   oa oe oi oo ou      oa$ oe
+#   ua ue ui uo uu      ua uum      vacuum continuum
+    $word =~ s/(?<=l)(EI|EO|IA|IE|IO|IU)l/lolol/gi;
+    $word =~ s/(?<=l)(UOI|UOU)l/lolol/gi;
+    print("-----3- $word\n") if $TEST;
+
+    $word =~ s/[aeiou]+/o/gi;   # collapse runs of vowels
+    $word =~ s/[^o]//g;         # only count vowels (as sylables)
+    print("-----4- $word\n") if $TEST;
+    my $s = length($word);
+    print("DEBUG -- $s $ow\n") if $DEBUG;
+    return($s);
+}
+
+
+sub test
+{
+    my $s = word_syllables($TEST);
+    print("TEST -- $s $TEST\n");
+    exit(0);
+}
+
+
+sub main
+{
+    args_parse();
+    test() if $TEST;
+
+    my @words;
+    open(F,"<$FILE") or die("FAILED to open $FILE\n");
+    foreach my $line ( <F> )
+    {
+        chomp($line);
+        push(@words, $_) foreach split(m/\s+/,$line);
+    }
+    close(F) or die("FAILED to close $FILE\n");
+    my $found = 0;
+    my $miss = 0;   # misses in a row
+    while ( 1 )
+    {
+        my $chosen = int(rand(scalar(@words)));
+        my $word = $words[$chosen];
+        die("FAILED to find match after $MISS_MAX attempts\n") if $miss >= $MISS_MAX;
+        ++$miss;
+        my $l = length($word);
+        next if $LENGTH_MIN and $l < $LENGTH_MIN;
+        next if $LENGTH_MAX and $l > $LENGTH_MAX;
+        if ( $SYLLABLES_MIN or $SYLLABLES_MAX )
+        {
+            my $s = word_syllables($word);
+            next if $SYLLABLES_MIN and $s < $SYLLABLES_MIN;
+            next if $SYLLABLES_MAX and $s > $SYLLABLES_MAX;
+        }
+#       next unless ( not($SYLLABLES_MIN) and not($SYLLABLES_MAX) ) or word_match($word);
+        ++$found;
+        print $word, "\n";
+        last if $found >= $COUNT;
+        $miss = 0;
+    }
+}
+
+
