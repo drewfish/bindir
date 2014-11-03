@@ -1,0 +1,81 @@
+#!/usr/bin/env perl
+#
+# TODO
+#   -n dryrun
+#   ~/.svn-prop-fixup.rc and $CWD/.svn-prop-fixup.rc
+#
+
+use strict;
+use warnings;
+
+
+my $DRYRUN = 0;
+my %EXT_TO_MIME = (
+    'gif'   => 'image/gif',
+    'png'   => 'image/png',
+    'jpg'   => 'image/jpeg',
+    'jpeg'  => 'image/jpeg',
+    'svg'   => 'image/svg+xml',
+);
+my @EXT_IS_EXECUTABLE = qw( sh pl );
+
+
+sub svn_list
+{
+    my $target = shift || die;
+    return(split m#\n#, `svn list -R $target`);
+}
+
+
+# returns success as boolean
+sub svn_prop_set
+{
+    my $target  = shift || die;
+    my $prop    = shift || die;
+    my $value   = shift || die;
+    my $cmd = "svn propset --quiet \"$prop\" \"$value\" $target";
+    print $cmd, "\n";
+    return(0==system($cmd)) unless $DRYRUN;
+    return(1);
+}
+
+
+sub main
+{
+    push(@ARGV,'.') unless @ARGV;
+    foreach my $target ( @ARGV )
+    {
+        my @files;
+        if ( -f $target )
+        {
+            push @files, $target;
+        }
+        else
+        {
+            @files = map { "$target/$_" } svn_list($target);
+            unshift @files, $target;
+        }
+
+        foreach my $file ( @files )
+        {
+            next if -d $file;
+            my $ext = $file;
+            $ext =~ s/.*\.([^.]+)$/$1/;
+            next unless $ext;
+
+            my $mime = $EXT_TO_MIME{$ext};
+            if ( $mime )
+            {
+                svn_prop_set($file, 'svn:mime-type', $mime);
+            }
+
+            if ( grep { $ext eq $_ } @EXT_IS_EXECUTABLE )
+            {
+                svn_prop_set($file, 'svn:executable', '*');
+            }
+        }
+    }
+}
+main();
+
+

@@ -1,0 +1,78 @@
+#!/usr/bin/env perl
+
+use strict;
+use warnings;
+
+
+sub svn_list
+{
+    my $target = shift || die;
+    return(split m#\n#, `svn list -R $target`);
+}
+
+
+sub svn_prop_list
+{
+    my $target = shift || die;
+    return(grep { $_ } split m#\s+#, `svn proplist --quiet $target`);
+}
+
+
+sub svn_prop_get
+{
+    my $target  = shift || die;
+    my $prop    = shift || die;
+    my $value = `svn propget --strict $prop $target`;
+    chomp $value;
+    return($value);
+}
+
+
+sub main
+{
+    push(@ARGV,'.') unless @ARGV;
+    foreach my $target ( @ARGV )
+    {
+        my @files;
+        if ( -f $target )
+        {
+            push @files, $target;
+        }
+        else
+        {
+            @files = map { "$target/$_" } svn_list($target);
+            unshift @files, $target;
+        }
+        foreach my $file ( @files )
+        {
+            my @props = svn_prop_list($file);
+            next unless @props;
+            print "==== ", $file, "\n";
+            my $maxlen = 0;
+            my $multiline = 0;
+            my %props;
+            foreach my $prop ( @props )
+            {
+                my $v = svn_prop_get($file,$prop);
+                $props{$prop} = $v;
+                my $l = length $prop;
+                $maxlen = $l if $l > $maxlen;
+                $multiline = 1 if $v =~ m#\n#;
+            }
+            foreach my $prop ( sort keys %props )
+            {
+                if ( $multiline )
+                {
+                    print "-- ", $prop, " --\n", $props{$prop}, "\n";
+                }
+                else
+                {
+                    printf "  \%-${maxlen}s \%s\n", $prop, $props{$prop};
+                }
+            }
+        }
+    }
+}
+main();
+
+

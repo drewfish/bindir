@@ -1,0 +1,139 @@
+#!/usr/bin/env perl
+# avr-nm --print-size --size-sort --radix=d --line-numbers --demangle .build/uno/firmware.elf
+#
+# TODO
+#   * nice error handling
+#       * missing avr-nm
+#   * smartly match shortpath to cwd
+#   * smartly interpret ino.ini
+#   * group syms (currently commented out)
+#   * smartly detect max size (possible?)
+#
+
+use strict;
+use warnings;
+use Data::Dumper;
+use File::Basename;
+
+my $SORTFIELD = 'start';
+my %TYPE_SECTIONS = qw(
+    b   bss
+    d   data
+    g   sdata
+    r   rodata
+    s   sbss
+    t   text
+    w   text
+);
+my %SYNOPSIS = qw(
+    _end    SRAM
+    _etext  flash
+);
+
+
+sub make_sorter {
+    my $field = shift || $SORTFIELD;
+    return sub {
+        my $d = $a->{$field} <=> $b->{$field};
+        return $d if $d != 0;
+        if ( $a->{'name'} =~ m/^(.*)_(start|end)$/ and $b->{'name'} =~ m/^$1_(start|end)$/ ) {
+            # nicely sort _start before _end
+            return $b->{'name'} cmp $a->{'name'};
+        }
+        return 0;
+    };
+}
+
+
+sub avr_syms {
+    my $path = shift or die;
+    print "$path\n";
+    my $raw = `avr-nm --numeric-sort --print-size --radix=d --line-numbers --demangle $path`;
+    my %groups;
+    my @syms;
+    foreach my $line ( split "\n", $raw ) {
+        my %sym;
+
+        if ($line =~ m/^(\d+)\s+(\d+)\s+(\w)\s+([^\t]+)(\t(.+):(\d+))?$/) {
+            $sym{'start'} = 0+$1;
+            $sym{'size'} = 0+$2;
+            $sym{'type'} = $3;
+            $sym{'name'} = $4;
+            if ($5) {
+                $sym{'path'} = $6;
+                $sym{'line'} = $7;
+                $sym{'group'} = basename(dirname($sym{'path'}));
+                $sym{'file'} = basename($sym{'path'});
+                $sym{'line'} = ':' . $sym{'line'};
+                $sym{'shortpath'} = $sym{'group'} . '/' . $sym{'file'} . $sym{'line'};
+            }
+            else {
+                $sym{'path'} = '';
+                $sym{'line'} = '';
+                $sym{'group'} = '???';
+                $sym{'file'} = '';
+                $sym{'shortpath'} = '';
+            }
+            $sym{'start'} -= 0x800000 if $sym{'start'} >= 0x800000;
+            $sym{'section'} = $TYPE_SECTIONS{lc $sym{'type'}} || '';
+            push @syms, \%sym;
+            push @{$groups{$sym{'group'}}}, \%sym;
+            next;
+        }
+        if ($line =~ m/^(\d+)\s+(\w)\s+(_end|_edata|_etext|__bss_start|__bss_end|__data_start|__data_end|__eeprom_end|__stack)$/) {
+            $sym{'start'} = 0+$1;
+            $sym{'size'} = 0;
+            $sym{'type'} = $2;
+            $sym{'name'} = $3;
+            $sym{'path'} = '';
+            $sym{'line'} = '';
+            $sym{'group'} = '???';
+            $sym{'file'} = '';
+            $sym{'shortpath'} = '';
+            $sym{'start'} -= 0x800000 if $sym{'start'} >= 0x800000;
+            $sym{'section'} = $TYPE_SECTIONS{lc $sym{'type'}} || '';
+            push @syms, \%sym;
+            push @{$groups{$sym{'group'}}}, \%sym;
+            next;
+        }
+    }
+
+    my $nameMaxWidth = 0;
+    foreach my $sym ( @syms ) {
+        my $l = length $sym->{'name'};
+        $nameMaxWidth = $l if $nameMaxWidth < $l;
+    }
+
+    my %synopsis;
+    my $sorter = make_sorter();
+    printf "    %5s %5s %-7s %-${nameMaxWidth}s  %s\n", qw/ START SIZE TYPE NAME FILE /;
+    foreach my $sym ( sort $sorter @syms ) {
+        printf "    %5d %5d %s-%-5s %-${nameMaxWidth}s  %s\n", @{$sym}{qw/ start size type section name shortpath /};
+        if ( $SYNOPSIS{$sym->{'name'}} ) {
+            $synopsis{ $SYNOPSIS{$sym->{'name'}} } = $sym->{'start'};
+        }
+    }
+    print "---- $_ $synopsis{$_} " foreach sort keys %synopsis;
+    print "----\n";
+
+#   # TODO -- group syms
+#   $sorter = make_sorter('start');
+#   foreach my $group ( sort keys %groups ) {
+#       print "    $group\n";
+#       my @syms = sort $sorter @{$groups{$group}};
+#       my $total = 0;
+#       foreach my $sym ( @syms ) {
+#           printf "        %5d %5d %s-%-5s %-${nameMaxWidth}s  %s\n", @{$sym}{qw/ start size type section name shortpath /};
+#           $total += $sym->{'size'};
+#       }
+#       printf "        -----|%5d|-------|-----TOTAL-----\n", $total;
+#   }
+}
+
+
+sub main {
+    avr_syms($_) foreach glob('.build/*/firmware.elf');
+}
+main();
+
+
