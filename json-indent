@@ -11,6 +11,7 @@ function main(files) {
             var data = libfs.readFileSync(file);
             data = JSON.parse(data);
             data = JSON.stringify(data, null, 4);
+            data += '\n';
             libfs.writeFileSync(file, data);
         } catch (err) {
             console.error('FAILED to process ' + file);
