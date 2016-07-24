@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+// vim: ft=javascript
+//
+// prints lines of files which are missing coverage
+// (so you don't need to open a browser to do this)
+//
+
+
+var LIBS = {
+        fs:     require('fs'),
+        path:   require('path'),
+    },
+    SRCS = [
+        'artifacts/coverage',
+        'coverage'
+    ];
+
+
+function loadCoverage() {
+    var json;
+    json = SRCS.filter(function(src) {
+        return LIBS.fs.existsSync(LIBS.path.join(src, 'coverage.json'))
+    });
+    if (! json) {
+        console.error('COULD NOT find coverage.json in ' + SRCS.join(','));
+        process.exit(1);
+    }
+    json = require(LIBS.path.join(process.cwd(), json[0], 'coverage.json'));
+    return json;
+}
+
+
+function lpad(str) {
+    var len;
+    str += '';  // make a string
+    len = str.length;
+    while (len < 5) {
+        str = '0' + str;
+        len++;
+    }
+    return str;
+}
+
+
+function reportFile(path, coverage) {
+    var linesShow = [],
+        lines,
+        lineNum,
+        lastLineNum;
+    Object.keys(coverage.s).forEach(function(stmtID) {
+        var calls = coverage.s[stmtID],
+            stmtMeta = coverage.statementMap[stmtID],
+            lineNum;
+        if (calls || stmtMeta.skip) {
+            return;
+        }
+        for (lineNum = stmtMeta.start.line; lineNum <= stmtMeta.end.line; lineNum++) {
+            linesShow[lineNum - 1] = true;
+        }
+    });
+    if (! linesShow.length) {
+        //console.log('==== yer covered, good job!');
+        return;
+    }
+    console.log('=======================', LIBS.path.relative(process.cwd(), path));
+    lines = LIBS.fs.readFileSync(path).toString().split('\n');
+    for (lineNum = 0; lineNum < lines.length; lineNum++) {
+        if (linesShow[lineNum]) {
+            if (lastLineNum && (lineNum !== (lastLineNum + 1))) {
+                console.log('...');
+            }
+            console.log(lpad(lineNum + 1) + ':' + lines[lineNum]);
+            lastLineNum = lineNum;
+        }
+    }
+}
+
+
+function main() {
+    var coverage = loadCoverage();
+    Object.keys(coverage).forEach(function(path) {
+        reportFile(path, coverage[path]);
+    });
+
+}
+main();
+
+
