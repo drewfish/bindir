@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# 
+#
 # Setup tmux session in the right environment, or attach if it already exists.
 #
 
@@ -19,6 +19,17 @@ sub debug {
 
 sub usage {
     print "USAGE: t <group> <project>\n";
+    unless ( $RUN{'group'} ) {
+        open(F, "<$CONFIG_FILE") or die("FAILED to open $CONFIG_FILE");
+        print "GROUPS:\n";
+        foreach my $line ( <F> ) {
+            chomp $line;
+            if ( $line =~ m/^\[group (\w+)\]$/ ) {
+                print "    $1\n";
+            }
+        }
+        close(F) or die("FAILED to close $CONFIG_FILE");
+    }
     exit(1);
 }
 
@@ -65,7 +76,7 @@ sub makeConfig {
         $line =~ s/^\s+//;
         $line =~ s/\s+$//;
         next unless $line;
-        if ( $line =~ m/^\[group (\w+)\]$/ ) {
+        if ( $line =~ m/^\[group ([^\]]+)\]$/ ) {
             $group = $1;
             next;
         }
@@ -79,7 +90,7 @@ sub makeConfig {
 
 
 sub changeHost {
-    debug "---------------------------------------------- changeHost";
+    debug "---------------------------------------------- changeHost " . $CFG{'host'};
     return unless $CFG{'host'};
     die("TODO -- changeHost\n");
 }
@@ -96,10 +107,10 @@ sub changeTmux {
             exit(2);
         }
         if ( ($sessions->{$RUN{'project'}} || '') eq $RUN{'session'} ) {
-            debug "-------------------- TMUX already there";
             return;
         }
     }
+    debug "---------------------------------------------- changeTmux";
 
     unless ( $sessions->{$RUN{'project'}} ) {
         # This'll let the new-session succeed. (It complains about nesting,
@@ -133,30 +144,29 @@ sub changeTmux {
 
 
 sub changeYroot {
-    debug "---------------------------------------------- changeYroot";
     return unless $CFG{'yroot'};
+    debug "---------------------------------------------- changeYroot " . $CFG{'yroot'};
     die("TODO -- changeYroot\n");
 }
 
 
 sub changeDir {
-    debug "---------------------------------------------- changeDir";
     my $dir = $CFG{'dir'} or return;
     $dir =~ s/^~/$ENV{'HOME'}/;
+    debug "---------------------------------------------- changeDir $dir";
     chdir($dir) if -d $dir;
     chdir($RUN{'project'}) if -d $RUN{'project'};
 }
 
 
 sub login {
-    debug "---------------------------------------------- login";
     my $shell = $ENV{'SHELL'};
     my $alias = '-' . basename($shell);
     my $parentName = getPidName(getppid());
     if ( $parentName eq $alias ) {
-        debug "-------------------- LOGIN already there";
         return;
     }
+    debug "---------------------------------------------- login $shell";
     debug "---CMD--- $shell";
     exec {$shell} $alias;
 }
@@ -166,8 +176,10 @@ sub main {
     makeRuntime();
     makeConfig();
     changeHost();
-    changeTmux();
-    changeYroot();
+    unless ( $ENV{'YROOT_NAME'} ) {
+        changeTmux();
+        changeYroot();
+    }
     changeDir();
     login();
 }
