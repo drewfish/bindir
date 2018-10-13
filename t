@@ -7,9 +7,7 @@ use strict;
 use warnings;
 use Data::Dumper;
 use File::Basename;
-our $CONFIG_FILE = "$ENV{HOME}/.t";
 our %RUN;   # our runtime details
-our %CFG;   # configuration for the chosen group
 
 
 sub debug {
@@ -18,18 +16,7 @@ sub debug {
 
 
 sub usage {
-    print "USAGE: t <group> <project>\n";
-    unless ( $RUN{'group'} ) {
-        open(F, "<$CONFIG_FILE") or die("FAILED to open $CONFIG_FILE");
-        print "GROUPS:\n";
-        foreach my $line ( <F> ) {
-            chomp $line;
-            if ( $line =~ m/^\[group (\w+)\]$/ ) {
-                print "    $1\n";
-            }
-        }
-        close(F) or die("FAILED to close $CONFIG_FILE");
-    }
+    print "USAGE: t <dir>\n";
     exit(1);
 }
 
@@ -37,7 +24,6 @@ sub usage {
 sub tmuxListSessions {
     my %sessions;
     my @cmd = ('tmux');
-    push(@cmd, '-L', $CFG{'socket'}) if $CFG{'socket'};
     push @cmd, 'list-sessions';
     push @cmd, '-F', '"#{session_id} #{session_name}"';
     my $cmd = join(' ', @cmd);
@@ -57,42 +43,13 @@ sub getPidName {
 
 
 sub makeRuntime {
-    $RUN{'group'}   = shift @ARGV or usage();
-    $RUN{'project'} = shift @ARGV or usage();
+    $RUN{'dir'} = shift @ARGV or usage();
+    $RUN{'project'} = basename($RUN{'dir'});
     if ( $ENV{'TMUX'} ) {
         my($socket, $pid, $session) = split ',', $ENV{'TMUX'};
         $RUN{'socket'} = basename($socket);
         $RUN{'session'} = '$' . $session;
     }
-}
-
-
-sub makeConfig {
-    open(F, "<$CONFIG_FILE") or die("FAILED to open $CONFIG_FILE");
-    my $group = '';
-    foreach my $line ( <F> ) {
-        chomp $line;
-        $line =~ s/#.*//;
-        $line =~ s/^\s+//;
-        $line =~ s/\s+$//;
-        next unless $line;
-        if ( $line =~ m/^\[group ([^\]]+)\]$/ ) {
-            $group = $1;
-            next;
-        }
-        if ( $group eq $RUN{'group'} ) {
-            my ($k, $v) = split m/\s*=\s*/, $line, 2;
-            $CFG{$k} = $v;
-        }
-    }
-    close(F) or die("FAILED to close $CONFIG_FILE");
-}
-
-
-sub changeHost {
-    debug "---------------------------------------------- changeHost " . $CFG{'host'};
-    return unless $CFG{'host'};
-    die("TODO -- changeHost\n");
 }
 
 
@@ -102,10 +59,6 @@ sub changeTmux {
     my @cmd;
 
     if ( $RUN{'session'} ) {
-        if ( $CFG{'socket'} and $RUN{'socket'} ne $CFG{'socket'} ) {
-            print STDERR "ERROR: existing tmux client can't switch between sockets\n";
-            exit(2);
-        }
         if ( ($sessions->{$RUN{'project'}} || '') eq $RUN{'session'} ) {
             return;
         }
@@ -119,10 +72,9 @@ sub changeTmux {
         delete $ENV{'TMUX'};
 
         @cmd = ( 'tmux' );
-        push(@cmd, '-L', $CFG{'socket'}) if $CFG{'socket'};
         push @cmd, 'new-session', '-d';
         push @cmd, '-s', $RUN{'project'};
-        push @cmd, "t $RUN{group} $RUN{project}";
+        push @cmd, '-c', $RUN{'dir'},
         debug "---CMD--- ", join(' ', @cmd);
         system(@cmd)==0 or die("tmux new-session failed with $?");
 
@@ -130,7 +82,6 @@ sub changeTmux {
     }
 
     @cmd = ( 'tmux' );
-    push(@cmd, '-L', $CFG{'socket'}) if $CFG{'socket'};
     if ( $RUN{'session'} ) {
         push @cmd, 'switch-client';
     }
@@ -143,51 +94,10 @@ sub changeTmux {
 }
 
 
-sub changeYroot {
-    return unless $CFG{'yroot'};
-    debug "---------------------------------------------- changeYroot " . $CFG{'yroot'};
-    die("TODO -- changeYroot\n");
-}
-
-
-sub changeDir {
-    my $dir = $CFG{'dir'} or return;
-    $dir =~ s/^~/$ENV{'HOME'}/;
-    debug "---------------------------------------------- changeDir $dir";
-    chdir($dir) if -d $dir;
-    chdir($RUN{'project'}) if -d $RUN{'project'};
-}
-
-
-sub login {
-    my $shell = $ENV{'SHELL'};
-    my $alias = '-' . basename($shell);
-    my $parentName = getPidName(getppid());
-    if ( $parentName eq $alias ) {
-        return;
-    }
-    debug "---------------------------------------------- login $shell";
-    debug "---CMD--- $shell";
-    exec {$shell} $alias;
-}
-
-
 sub main {
     makeRuntime();
-    makeConfig();
-    changeHost();
-    unless ( $ENV{'YROOT_NAME'} ) {
-        changeTmux();
-        changeYroot();
-    }
-    changeDir();
-    login();
+    changeTmux();
 }
 main();
-
-
-__DATA__
-TODO -- document .t file systax
-
 
 
