@@ -10,7 +10,7 @@ function main(files) {
         try {
             var data = libfs.readFileSync(file);
             data = JSON.parse(data);
-            data = JSON.stringify(data, null, 4);
+            data = JSON.stringify(data, null, 2);
             data += '\n';
             libfs.writeFileSync(file, data);
         } catch (err) {

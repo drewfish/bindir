@@ -1,0 +1,40 @@
+#!/usr/bin/env node
+
+const child_process = require('child_process');
+
+const PREFIX = '--------------------------------';
+
+function usage() {
+  console.log('USAGE:  timer [cmd] [...args]');
+  process.exit(0);
+}
+
+async function run(args) {
+  return new Promise((accept, reject) => {
+    const cmd = args.shift();
+    if (!cmd || cmd === '--help') {
+      usage();
+    }
+    console.log(PREFIX, 'COMMAND', cmd, ...args);
+    const t0 = Date.now();
+    const child = child_process.spawn(cmd, args, {stdio: 'inherit'});
+    child.on('error', (err) => {
+      reject(err);
+    });
+    child.on('exit', (code) => {
+      const t1 = Date.now();
+      console.log(PREFIX, 'EXIT', code);
+      console.log(PREFIX, 'ELAPSED', (t1-t0), 'ms');
+      accept(code);
+    });
+  });
+}
+
+run(process.argv.slice(2)).then((code) => {
+  process.exit(code);
+}).catch((err) => {
+  console.error(PREFIX, 'ERROR', err);
+  console.error(PREFIX, err);
+  process.exit(1);
+});
+
