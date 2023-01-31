@@ -255,7 +255,7 @@ sub main {
     my $log = `git for-each-ref --format='%(refname) %(objectname) %(upstream)'`;
     foreach my $line ( split "\n", $log ) {
         my($refname, $commit, $upstream) = split ' ', $line;
-        if ( $refname =~ m#^refs/heads/([^/]+)$# ) {
+        if ( $refname =~ m#^refs/heads/(.+)$# ) {
             my $branch = $1;
             $table{$branch}{'local'}{'commit'} = $commit;
             $table{$branch}{'local'}{'local'} = 1;
@@ -265,7 +265,7 @@ sub main {
             }
             next;
         }
-        if ( $refname =~ m#^refs/remotes/([^/]+)/([^/]+)$# ) {
+        if ( $refname =~ m#^refs/remotes/([^/]+)/(.+)$# ) {
             my $remote = $1;
             my $branch = $2;
             next if $branch eq 'HEAD';
